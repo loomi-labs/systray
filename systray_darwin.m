@@ -31,15 +31,16 @@ withParentMenuId: (int)theParentMenuId
  withShortcutKey: (const char*)theShortcutKey
     withDisabled: (short)theDisabled
      withChecked: (short)theChecked;
-     @end
-     @implementation MenuItem
-     -(id) initWithId: (int)theMenuId
-     withParentMenuId: (int)theParentMenuId
-            withTitle: (const char*)theTitle
-          withTooltip: (const char*)theTooltip
-      withShortcutKey: (const char*)theShortcutKey
-         withDisabled: (short)theDisabled
-          withChecked: (short)theChecked
+@end
+
+@implementation MenuItem
+-(id) initWithId: (int)theMenuId
+withParentMenuId: (int)theParentMenuId
+       withTitle: (const char*)theTitle
+     withTooltip: (const char*)theTooltip
+ withShortcutKey: (const char*)theShortcutKey
+    withDisabled: (short)theDisabled
+     withChecked: (short)theChecked
 {
   menuId = [NSNumber numberWithInt:theMenuId];
   parentMenuId = [NSNumber numberWithInt:theParentMenuId];
@@ -53,14 +54,14 @@ withParentMenuId: (int)theParentMenuId
 }
 @end
 
-@interface SystrayAppDelegate: NSObject <NSApplicationDelegate>
+@interface SysTrayAppDelegate: NSObject <NSApplicationDelegate>
   - (void) add_or_update_menu_item:(MenuItem*) item;
   - (IBAction)menuHandler:(id)sender;
   - (void)statusOnClick:(NSButton *)btn;
   @property (assign) IBOutlet NSWindow *window;
-  @end
+@end
 
-@implementation SystrayAppDelegate {
+@implementation SysTrayAppDelegate {
   NSStatusItem *statusItem;
   NSMenu *menu;
   NSCondition* cond;
@@ -69,28 +70,32 @@ withParentMenuId: (int)theParentMenuId
 @synthesize window = _window;
 
 - (void)applicationDidFinishLaunching:(NSNotification *)aNotification {
-  self->statusItem = [[NSStatusBar systemStatusBar] statusItemWithLength:NSVariableStatusItemLength];
-  self->menu = [[NSMenu alloc] init];
-  [self->menu setAutoenablesItems: FALSE];
-  //[self->statusItem.button setTarget:self];
-  //[self->menu setDelegate:(SystrayAppDelegate *)self];
-  //[self->statusItem.button setAction:@selector(statusOnClick:)];
-  //[self->statusItem setMenu:self->menu]; //注释掉，不然不设置菜单事件也不启作用
-  systray_ready();
+  dispatch_async(dispatch_get_main_queue(), ^{
+    self->statusItem = [[NSStatusBar systemStatusBar] statusItemWithLength:NSVariableStatusItemLength];
+    self->menu = [[NSMenu alloc] init];
+    [self->menu setAutoenablesItems: FALSE];
+    systray_ready();
+  });
 }
 
 - (void)applicationWillTerminate:(NSNotification *)aNotification {
-  systray_on_exit();
+  dispatch_async(dispatch_get_main_queue(), ^{
+    systray_on_exit();
+  });
 }
 
 - (void)setIcon:(NSImage *)image {
-  statusItem.button.image = image;
-  [self updateTitleButtonStyle];
+  dispatch_async(dispatch_get_main_queue(), ^{
+    statusItem.button.image = image;
+    [self updateTitleButtonStyle];
+  });
 }
 
 - (void)setTitle:(NSString *)title {
-  statusItem.button.title = title;
-  [self updateTitleButtonStyle];
+  dispatch_async(dispatch_get_main_queue(), ^{
+    statusItem.button.title = title;
+    [self updateTitleButtonStyle];
+  });
 }
 
 -(void)updateTitleButtonStyle {
@@ -105,52 +110,55 @@ withParentMenuId: (int)theParentMenuId
   }
 }
 
-
 - (void)setTooltip:(NSString *)tooltip {
-  statusItem.button.toolTip = tooltip;
+  dispatch_async(dispatch_get_main_queue(), ^{
+    statusItem.button.toolTip = tooltip;
+  });
 }
 
 - (IBAction)menuHandler:(id)sender {
-  NSNumber* menuId = [sender representedObject];
-  systray_menu_item_selected(menuId.intValue);
+  dispatch_async(dispatch_get_main_queue(), ^{
+    NSNumber* menuId = [sender representedObject];
+    systray_menu_item_selected(menuId.intValue);
+  });
 }
 
 - (void)add_or_update_menu_item:(MenuItem *)item {
-  NSMenu *theMenu = self->menu;
-  NSMenuItem *parentItem;
-  //create_menu();
-  if ([item->parentMenuId integerValue] > 0) {
-    parentItem = find_menu_item(menu, item->parentMenuId);
-    if (parentItem.hasSubmenu) {
-      theMenu = parentItem.submenu;
-    } else {
-      theMenu = [[NSMenu alloc] init];
-      [theMenu setAutoenablesItems:NO];
-      [parentItem setSubmenu:theMenu];
+  dispatch_async(dispatch_get_main_queue(), ^{
+    NSMenu *theMenu = self->menu;
+    NSMenuItem *parentItem;
+    if ([item->parentMenuId integerValue] > 0) {
+      parentItem = find_menu_item(menu, item->parentMenuId);
+      if (parentItem.hasSubmenu) {
+        theMenu = parentItem.submenu;
+      } else {
+        theMenu = [[NSMenu alloc] init];
+        [theMenu setAutoenablesItems:NO];
+        [parentItem setSubmenu:theMenu];
+      }
     }
-  }
-  
-  NSMenuItem *menuItem;
-  menuItem = find_menu_item(theMenu, item->menuId);
-  //item->shortcutKey
-  if (menuItem == NULL) {
-    menuItem = [theMenu addItemWithTitle:item->title action:@selector(menuHandler:) keyEquivalent:@""];
-    [menuItem setRepresentedObject:item->menuId];
-  }
-  [menuItem setTitle:item->title];
-  [menuItem setTag:[item->menuId integerValue]];
-  [menuItem setTarget:self];
-  [menuItem setToolTip:item->tooltip];
-  if (item->disabled == 1) {
-    menuItem.enabled = FALSE;
-  } else {
-    menuItem.enabled = TRUE;
-  }
-  if (item->checked == 1) {
-    menuItem.state = NSControlStateValueOn;
-  } else {
-    menuItem.state = NSControlStateValueOff;
-  }
+
+    NSMenuItem *menuItem;
+    menuItem = find_menu_item(theMenu, item->menuId);
+    if (menuItem == NULL) {
+      menuItem = [theMenu addItemWithTitle:item->title action:@selector(menuHandler:) keyEquivalent:@""];
+      [menuItem setRepresentedObject:item->menuId];
+    }
+    [menuItem setTitle:item->title];
+    [menuItem setTag:[item->menuId integerValue]];
+    [menuItem setTarget:self];
+    [menuItem setToolTip:item->tooltip];
+    if (item->disabled == 1) {
+      menuItem.enabled = FALSE;
+    } else {
+      menuItem.enabled = TRUE;
+    }
+    if (item->checked == 1) {
+      menuItem.state = NSControlStateValueOn;
+    } else {
+      menuItem.state = NSControlStateValueOff;
+    }
+  });
 }
 
 NSMenuItem *find_menu_item(NSMenu *ourMenu, NSNumber *menuId) {
@@ -171,92 +179,114 @@ NSMenuItem *find_menu_item(NSMenu *ourMenu, NSNumber *menuId) {
   }
 
   return NULL;
-};
+}
 
 - (void) add_separator:(NSNumber*) menuId {
-  [menu addItem: [NSMenuItem separatorItem]];
+  dispatch_async(dispatch_get_main_queue(), ^{
+    [menu addItem: [NSMenuItem separatorItem]];
+  });
 }
 
 - (void) hide_menu_item:(NSNumber*) menuId {
-  NSMenuItem* menuItem = find_menu_item(menu, menuId);
-  if (menuItem != NULL) {
-    [menuItem setHidden:TRUE];
-  }
+  dispatch_async(dispatch_get_main_queue(), ^{
+    NSMenuItem* menuItem = find_menu_item(menu, menuId);
+    if (menuItem != NULL) {
+      [menuItem setHidden:TRUE];
+    }
+  });
 }
 
 - (void) setMenuItemIcon:(NSArray*)imageAndMenuId {
-  NSImage* image = [imageAndMenuId objectAtIndex:0];
-  NSNumber* menuId = [imageAndMenuId objectAtIndex:1];
+  dispatch_async(dispatch_get_main_queue(), ^{
+    NSImage* image = [imageAndMenuId objectAtIndex:0];
+    NSNumber* menuId = [imageAndMenuId objectAtIndex:1];
 
-  NSMenuItem* menuItem;
-  menuItem = find_menu_item(menu, menuId);
-  if (menuItem == NULL) {
-    return;
-  }
-  menuItem.image = image;
+    NSMenuItem* menuItem;
+    menuItem = find_menu_item(menu, menuId);
+    if (menuItem == NULL) {
+      return;
+    }
+    menuItem.image = image;
+  });
 }
 
 - (void) show_menu_item:(NSNumber*) menuId {
-  NSMenuItem* menuItem = find_menu_item(menu, menuId);
-  if (menuItem != NULL) {
-    [menuItem setHidden:FALSE];
-  }
+  dispatch_async(dispatch_get_main_queue(), ^{
+    NSMenuItem* menuItem = find_menu_item(menu, menuId);
+    if (menuItem != NULL) {
+      [menuItem setHidden:FALSE];
+    }
+  });
 }
 
 - (void) create_menu {
-  if(statusItem.menu == NULL){
-    [statusItem setMenu:menu];
-  }
+  dispatch_async(dispatch_get_main_queue(), ^{
+    if(statusItem.menu == NULL){
+      [statusItem setMenu:menu];
+    }
+  });
 }
 
 - (void) set_menu_nil {
-  if(statusItem.menu != NULL){
-    [statusItem setMenu:NULL];
-  }
+  dispatch_async(dispatch_get_main_queue(), ^{
+    if(statusItem.menu != NULL){
+      [statusItem setMenu:NULL];
+    }
+  });
 }
 
 - (void) reset_menu {
-  [self->menu removeAllItems];
+  dispatch_async(dispatch_get_main_queue(), ^{
+    [self->menu removeAllItems];
+  });
 }
 
 - (void) quit {
-  [NSApp terminate:self];
+  dispatch_async(dispatch_get_main_queue(), ^{
+    [NSApp terminate:self];
+  });
 }
 
 - (void) statusOnClick:(NSButton *)btn {
+  dispatch_async(dispatch_get_main_queue(), ^{
     NSEvent *event = [NSApp currentEvent];
     if(event.type == NSEventTypeLeftMouseUp){
-        systray_on_click();
+      systray_on_click();
     }else if(event.type == NSEventTypeRightMouseUp){
-        systray_on_rclick();
+      systray_on_rclick();
     }
+  });
 }
 
 - (void) show_menu {
+  dispatch_async(dispatch_get_main_queue(), ^{
     create_menu();
     [statusItem.button performClick:nil];
     set_menu_nil();
+  });
 }
 
 - (void) enable_on_click {
-  [statusItem.button setAction:@selector(statusOnClick:)];
-  [statusItem.button sendActionOn:(NSEventMaskLeftMouseUp|NSEventMaskRightMouseUp)];
+  dispatch_async(dispatch_get_main_queue(), ^{
+    [statusItem.button setAction:@selector(statusOnClick:)];
+    [statusItem.button sendActionOn:(NSEventMaskLeftMouseUp|NSEventMaskRightMouseUp)];
+  });
 }
 
 @end
 
 bool internalLoop = false;
-SystrayAppDelegate *owner;
+SysTrayAppDelegate *owner;
 
 void setInternalLoop(bool i) {
-	internalLoop = i;
+ internalLoop = i;
 }
 
 void registerSystray(void) {
   if (!internalLoop) { // with an external loop we don't take ownership of the app
     return;
   }
-  owner = [[SystrayAppDelegate alloc] init];
+  owner = [[SysTrayAppDelegate alloc] init];
   [[NSApplication sharedApplication] setDelegate:owner];
 
   // A workaround to avoid crashing on macOS versions before Catalina. Somehow
@@ -279,7 +309,7 @@ int nativeLoop(void) {
 }
 
 void nativeStart(void) {
-  owner = [[SystrayAppDelegate alloc] init];
+  owner = [[SysTrayAppDelegate alloc] init];
   NSNotification *launched = [NSNotification
                                   notificationWithName: NSApplicationDidFinishLaunchingNotification
                                                 object: [NSApplication sharedApplication]];
